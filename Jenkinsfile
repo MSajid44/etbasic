@@ -4,8 +4,8 @@ pipeline {
   environment {
     REPO_URL  = 'https://github.com/MSajid44/Expense-Tracker.git'
     APP_NAME  = 'expense-tracker'
-    IMAGE_TAG = "${APP_NAME}:${BUILD_NUMBER}"
-    IMAGE_TAR = "${WORKSPACE}/${APP_NAME}-${BUILD_NUMBER}.tar"
+    DOCKER_USER = 'muhammadsajid44'
+    IMAGE_TAG = "${DOCKER_USER}/${APP_NAME}:${BUILD_NUMBER}"
   }
 
   stages {
@@ -24,26 +24,30 @@ pipeline {
       }
     }
 
-    stage('Save Image to Workspace') {
+    stage('Login to Docker Hub') {
       steps {
-        sh '''
-          echo "Saving Docker image to workspace..."
-          docker save -o ${IMAGE_TAR} ${IMAGE_TAG}
-          ls -lh ${WORKSPACE}
-        '''
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
+          sh '''
+            echo "Logging in to Docker Hub..."
+            echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin
+          '''
+        }
       }
     }
 
-    stage('Archive Artifacts') {
+    stage('Push Image to Docker Hub') {
       steps {
-        archiveArtifacts artifacts: "${APP_NAME}-${BUILD_NUMBER}.tar", fingerprint: true
+        sh '''
+          echo "Pushing image to Docker Hub..."
+          docker push ${IMAGE_TAG}
+        '''
       }
     }
   }
 
   post {
     success {
-      echo "✅ Build complete. Docker image saved and archived successfully."
+      echo "✅ Image successfully pushed to Docker Hub: ${IMAGE_TAG}"
     }
   }
 }
