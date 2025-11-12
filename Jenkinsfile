@@ -1,35 +1,49 @@
 pipeline {
-    agent any   // Means: run this job on any available Jenkins machine (agent)
+  agent any
 
-    stages {    // Stages = steps or phases of your pipeline
-        stage('Checkout Code') {
-            steps {
-                // This downloads (clones) your GitHub repository into Jenkins workspace
-                git branch: 'main', url: 'https://github.com/MSajid44/Expense-Tracker.git'
-            }
-        }
+  environment {
+    REPO_URL  = 'https://github.com/MSajid44/Expense-Tracker.git'
+    APP_NAME  = 'expense-tracker'
+    IMAGE_TAG = "${APP_NAME}:${BUILD_NUMBER}"
+    IMAGE_TAR = "${WORKSPACE}/${APP_NAME}-${BUILD_NUMBER}.tar"
+  }
 
-        stage('Check PHP Syntax') {
-            steps {
-                // This checks all PHP files in your repo for syntax errors
-                sh 'find . -name "*.php" -exec php -l {} \\;'
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                // This builds a Docker image using your Dockerfile (must be present in repo)
-                sh 'docker build -t expense-tracker:latest .'
-            }
-        }
+  stages {
+    stage('Checkout') {
+      steps {
+        git url: "${REPO_URL}", branch: 'main'
+      }
     }
 
-    post {
-        success {
-            echo '✅ Build completed successfully!'
-        }
-        failure {
-            echo '❌ Build failed. Check logs for details.'
-        }
+    stage('Build Docker Image') {
+      steps {
+        sh '''
+          echo "Building Docker image..."
+          docker build -t ${IMAGE_TAG} .
+        '''
+      }
     }
+
+    stage('Save Image to Workspace') {
+      steps {
+        sh '''
+          echo "Saving Docker image to workspace..."
+          docker save -o ${IMAGE_TAR} ${IMAGE_TAG}
+          ls -lh ${WORKSPACE}
+        '''
+      }
+    }
+
+    stage('Archive Artifacts') {
+      steps {
+        archiveArtifacts artifacts: "${APP_NAME}-${BUILD_NUMBER}.tar", fingerprint: true
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "✅ Build complete. Docker image saved and archived successfully."
+    }
+  }
 }
